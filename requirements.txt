@@ -1,6 +1,4 @@
-selenium
-selenium-stealth
-undetected_chromedriver
-fake_useragent
+requests
+json
 time
 os
