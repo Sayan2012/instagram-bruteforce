@@ -1,4 +1,7 @@
-requests
+httpx
+asyncio
 json
-time
 os
+random
+time
+fake_useragent
